@@ -280,23 +280,7 @@ def move_note_to_notebook(
         print("移動失敗:", response.status_code, response.text)
         return False
 
-
-if __name__ == "__main__":
-    nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'inbox')
-    str_year = datetime.now().strftime('%Y')
-    dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
-    CREATED_AFTER = datetime.now() - timedelta(days=30)
-    items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
-
-    #tag_id = get_tag_id_by_name(API_URL, API_TOKEN, '公投')
-    #items = get_filtered_notes(API_URL, API_TOKEN, None, None, None, tag_id)
-
-    session_id = get_session(USER, PASS)
-    if session_id is None:
-        print ('can\'t get session id')
-        sys.exit()
-    print (f"get session id  {session_id}")
-
+def pub2pocket(session_id, items, dest_nb_id):
     for note in items:
         note_id = note['id']
         note_title = note['title']
@@ -316,6 +300,32 @@ if __name__ == "__main__":
                         print (f"remove share:\t {note_title} {share_item['id']}")
             else:
                 print (f"add url fail:\t {note_title}")
+
+
+if __name__ == "__main__":
+    session_id = get_session(USER, PASS)
+    if session_id is None:
+        print ('can\'t get session id')
+        sys.exit()
+    print (f"get session id  {session_id}")
+
+    CREATED_AFTER = datetime.now() - timedelta(days=30)
+
+    nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'inbox')
+    str_year = datetime.now().strftime('%Y')
+    dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
+
+    items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
+    pub2pocket(session_id, items, dest_nb_id)
+
+
+    nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'cinbox')
+    str_year = datetime.now().strftime('%Y')
+    dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, f"c{str_year}")
+
+    items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
+    pub2pocket(session_id, items, dest_nb_id)
+
 
     print ("\ndelete all share")
     items = get_shares(session_id)
