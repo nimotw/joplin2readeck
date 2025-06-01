@@ -15,6 +15,51 @@ USER = os.getenv("JOPLIN_USERNAME")
 PASS = os.getenv("JOPLIN_PASSWORD")
 CONSUMER_KEY = os.getenv("POCKET_CONSUMER_KEY")
 ACCESS_TOKEN = os.getenv("POCKET_ACCESS_TOKEN")
+READECK_URL = os.getenv("READECK_URL")
+READECK_TOKEN = os.getenv("READECK_TOKEN")
+
+def format_ym_week(date_str: str = None) -> str:
+    """回傳 'YYYYMMWW' 格式，WW 為當月第幾週（兩位數）。預設使用今天日期。"""
+    if date_str:
+        date = datetime.strptime(date_str, "%Y%m%d")
+    else:
+        date = datetime.today()
+
+    first_day = date.replace(day=1)
+    first_weekday = first_day.weekday()  # 星期一為 0
+    day_of_month = date.day
+    week_of_month = (day_of_month + first_weekday - 1) // 7 + 1
+    return f"{date.strftime('%Y%m')}{week_of_month:02d}"
+
+def add_to_readeck(bookmark_url, title=None, tags=None):
+    # API endpoint to create a new bookmark
+    endpoint = f"{READECK_URL}/api/bookmarks"
+
+    # Prepare headers and payload
+    headers = {
+        "Authorization": f"Bearer {READECK_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    if tags is None:
+        tags = []
+        tags.append(format_ym_week())
+
+    payload = {
+        "url": bookmark_url,
+        "title": title,
+        "tags": tags
+    }
+    #print (payload)
+
+    # Send the request
+    response = requests.post(endpoint, json=payload, headers=headers)
+
+    # Handle the response
+    if response.status_code == 202:
+        return True
+    else:
+        return False
 
 def add_to_pocket(url, title=None, tags=None):
     api_url = 'https://getpocket.com/v3/add'
@@ -292,8 +337,8 @@ def pub2pocket(session_id, items, dest_nb_id):
 
         share_items = get_shares(session_id)
         for share_item in share_items:
-            if add_to_pocket(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
-                print (f"add url to pocket:\t{note_title}")
+            if add_to_readeck(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title) and add_to_pocket(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
+                print (f"add url to pocket and readeck:\t{note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
                     print (f"move to notebook {str_year}:\t {note_title}")
                     if del_share(session_id, share_item): 
