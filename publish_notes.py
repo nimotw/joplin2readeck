@@ -25,13 +25,14 @@ def format_ym_week(date_str: str = None) -> str:
     else:
         date = datetime.today()
 
-    first_day = date.replace(day=1)
-    first_weekday = first_day.weekday()  # 星期一為 0
+    #first_day = date.replace(day=1)
+    #first_weekday = first_day.weekday()  # 星期一為 0
     day_of_month = date.day
-    week_of_month = (day_of_month + first_weekday - 1) // 7 + 1
+    #week_of_month = (day_of_month + first_weekday - 1) // 7 + 1
+    week_of_month = (day_of_month) // 7 + 1
     return f"{date.strftime('%Y%m')}{week_of_month:02d}"
 
-def add_to_readeck(bookmark_url, title=None, tags=None):
+def add_to_readeck(bookmark_url, title=None, tags=[]):
     # API endpoint to create a new bookmark
     endpoint = f"{READECK_URL}/api/bookmarks"
 
@@ -41,14 +42,12 @@ def add_to_readeck(bookmark_url, title=None, tags=None):
         "Content-Type": "application/json",
     }
 
-    if tags is None:
-        tags = []
-        tags.append(format_ym_week())
+    tags.append(format_ym_week())
 
     payload = {
         "url": bookmark_url,
         "title": title,
-        "tags": tags
+        "labels": tags
     }
     #print (payload)
 
