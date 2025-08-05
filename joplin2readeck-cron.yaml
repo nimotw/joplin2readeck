@@ -1,0 +1,46 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: joplin2readeck-cron
+  namespace: joplin-cli
+spec:
+  schedule: "*/5 * * * *"
+  startingDeadlineSeconds: 60
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  suspend: false
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          containers:
+          - name: joplin2readeck
+            image: localhost:32000/joplin2readeck:1.0.0
+            imagePullPolicy: Always
+            command: ["/app/.venv/bin/python"]
+            args: ["/app/note2read.py"]
+            envFrom:
+            - configMapRef:
+                name: joplin2readeck-env
+            - secretRef:
+                name: joplin2readeck-secret
+            volumeMounts:
+            - name: log-volume
+              mountPath: /logs
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          restartPolicy: OnFailure
+          volumes:
+          - name: log-volume
+            emptyDir: {}
+
+

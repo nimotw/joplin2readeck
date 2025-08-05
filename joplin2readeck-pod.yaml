@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: joplin2readeck-test
+  namespace: joplin-cli
+spec:
+  containers:
+  - name: joplin2readeck
+    image: localhost:32000/joplin2readeck:1.0.0
+    imagePullPolicy: Always
+    command: ["/bin/sh", "-c"]
+    args:
+      - "/app/.venv/bin/python /app/hello.py && tail -f /dev/null"
+    envFrom:
+    - configMapRef:
+        name: joplin2readeck-env
+    - secretRef:
+        name: joplin2readeck-secret
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  restartPolicy: Never
+

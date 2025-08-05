@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: joplin2readeck-env
+  namespace: joplin-cli
+data:
+  JOPLIN_DATA_API_URL: "change to your joplin cli data api url, http://k8s svc name:port" 
+  JOPLIN_SERVER_URL: "change to your joplin server url"
+  READECK_URL: "change to your readeck server url"
