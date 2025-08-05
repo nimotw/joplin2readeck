@@ -14,8 +14,6 @@ API_TOKEN = os.getenv("JOPLIN_DATA_API_TOKEN")
 SERVER_URL = os.getenv("JOPLIN_SERVER_URL")
 USER = os.getenv("JOPLIN_USERNAME")
 PASS = os.getenv("JOPLIN_PASSWORD")
-CONSUMER_KEY = os.getenv("POCKET_CONSUMER_KEY")
-ACCESS_TOKEN = os.getenv("POCKET_ACCESS_TOKEN")
 READECK_URL = os.getenv("READECK_URL")
 READECK_TOKEN = os.getenv("READECK_TOKEN")
 
@@ -32,6 +30,64 @@ def format_ym_week(date_str: str = None) -> str:
     #week_of_month = (day_of_month + first_weekday - 1) // 7 + 1
     week_of_month = (day_of_month) // 7 + 1
     return f"{date.strftime('%Y%m')}{week_of_month:02d}"
+
+def ensure_yearmonth_tag(api_base_url, token, yearmonth=None):
+    """
+    確保 Joplin 中存在指定的 yearmonth 標籤（格式: 'YYYYMM'），若不存在則建立。
+
+    :param api_base_url: Joplin API base URL，例如 http://localhost:41184
+    :param token: Joplin API token
+    :param yearmonth: 指定標籤 (預設為當月的 'YYYYMM')
+    :return: tag ID（str）
+    """
+    if yearmonth is None:
+        yearmonth = datetime.now().strftime("%Y%m")
+
+    # 1. 查詢是否已有此標籤
+    res = requests.get(f"{api_base_url}/tags", params={'token': token})
+    res.raise_for_status()
+    tags = res.json().get('items', [])
+
+    for tag in tags:
+        if tag['title'] == yearmonth:
+            print(f"Tag '{yearmonth}' already exists with ID: {tag['id']}")
+            return tag['id']
+
+    # 2. 若無，則建立新標籤
+    res = requests.post(
+        f"{api_base_url}/tags",
+        json={"title": yearmonth}, 
+        params={'token': token}
+    )
+    res.raise_for_status()
+    tag = res.json()
+    print(f"Created tag '{yearmonth}' with ID: {tag['id']}")
+    return tag['id']
+
+
+def apply_tag_to_note(api_base_url, token, tag_id, note_id):
+    """
+    將指定 tag 套用到指定的 note。
+
+    :param api_base_url: Joplin API base URL，例如 http://localhost:41184
+    :param token: Joplin API token
+    :param tag_id: 要套用的 tag ID
+    :param note_id: 要套用的 note ID
+    """
+    url = f"{api_base_url}/tags/{tag_id}/notes"
+    payload = {
+        "id": note_id
+    }
+
+    res = requests.post(url, json=payload, params={'token': token})
+    
+    if res.status_code == 200:
+        print(f"Tag {tag_id} successfully applied to note {note_id}")
+    elif res.status_code == 400 and 'already' in res.text:
+        print(f"Note {note_id} already has tag {tag_id}")
+    else:
+        res.raise_for_status()
+
 
 def add_to_readeck(bookmark_url, title=None, tags=[]):
     # API endpoint to create a new bookmark
@@ -314,6 +370,10 @@ def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
 
         share_items = get_shares(session_id)
         for share_item in share_items:
+
+            tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
+            apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
+
             if add_to_readeck(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
                 print (f"add url to readeck:\t{note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
@@ -344,15 +404,6 @@ if __name__ == "__main__":
 
     items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
     pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
-
-
-    nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'cinbox')
-    str_year = datetime.now().strftime('%Y')
-    dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, f"c{str_year}")
-
-    items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
-    pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
-
 
     print ("\ndelete all share")
     items = get_shares(session_id)
