@@ -1,0 +1,8 @@
+{
+    "sync.target": 9,
+    "sync.9.path": "joplin server url",
+    "sync.9.username": "joplin server username",
+    "sync.9.password": "joplin server password",
+    "net.ignoreTlsErrors": false,
+    "sync.interval": 120
+}

@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: joplin-cli
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: joplin-data-pvc
+  namespace: joplin-cli
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi  # 可依需求調整容量
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: joplin-config-secret
+  namespace: joplin-cli
+type: Opaque
+data:
+  # 將 joplin-config.json 用 base64 編碼後貼在這裡
+  joplin-config.json: changeme
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: joplin-cli
+  namespace: joplin-cli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: joplin-cli
+  template:
+    metadata:
+      labels:
+        app: joplin-cli
+    spec:
+      dnsPolicy: "Default"
+      containers:
+      - name: joplin-cli
+        # change to your image path
+        image: localhost:32000/jspiers/headless-joplin:2.13.2-node-20.11.1
+        imagePullPolicy: Always
+        env:
+        - name: JOPLIN_LOG_ENABLED
+          value: "true"
+        volumeMounts:
+        - name: joplin-data
+          mountPath: /home/node/.config/joplin
+        - name: joplin-config
+          mountPath: /var/run/secrets/joplin-config.json
+          subPath: joplin-config.json
+        ports:
+        - containerPort: 8080
+      volumes:
+      - name: joplin-data
+        persistentVolumeClaim:
+          claimName: joplin-data-pvc
+      - name: joplin-config
+        secret:
+          secretName: joplin-config-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: joplin-service
+  namespace: joplin-cli
+spec:
+  selector:
+    app: joplin-cli
+  ports:
+    - protocol: TCP
+      port: 41184
+      targetPort: 8080
+      name: socat
+  type: ClusterIP
+
