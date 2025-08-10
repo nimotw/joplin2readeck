@@ -40,3 +40,51 @@ kubectl describe cronjob joplin2readeck-cron -n joplin-cli
 ---
 
 Feel free to suggest improvements or ask questions by opening an issue in this repository!
+
+---
+
+## Architecture Diagram
+
+```mermaid
+flowchart LR
+    subgraph Kubernetes
+        A[CronJob (scheduled execution)]
+    end
+    A -->|API| B[joplin2readeck Python Script]
+    B -->|API| C[Joplin Server]
+    B -->|API| D[Readeck Server]
+```
+
+## Flowchart
+
+```mermaid
+flowchart TD
+    Start(Start) --> S1[Obtain Joplin Server Session]
+    S1 --> S2[Query notes in the inbox notebook]
+    S2 --> S3{For each eligible note}
+    S3 -->|Success| S4[Publish share link]
+    S4 --> S5[Fetch share link]
+    S5 --> S6[Add year-month/week tag]
+    S6 --> S7[Push share URL to Readeck]
+    S7 --> S8[Move to annual notebook]
+    S8 --> S9[Delete Joplin share link]
+    S3 -->|Failure| F1[Move to fail notebook]
+    S9 --> End(End)
+    F1 --> End
+```
+
+### Process Description
+
+1. When started, environment variables are used to configure Joplin and Readeck API endpoints.
+2. A session is established with the Joplin Server.
+3. Notes created recently in the specified notebook (e.g., "inbox") are queried (with time filters).
+4. For each note:
+    - Publish a Joplin share link.
+    - Fetch the share URL.
+    - Add a year-month/week tag in Joplin.
+    - Push the share URL to Readeck, making it available for EPUB reading.
+    - On success, move the note to the annual notebook; on failure, move to the fail notebook.
+    - Delete the Joplin share link to avoid duplication.
+5. The entire process is triggered automatically and periodically by a Kubernetes CronJob, ensuring consistent synchronization.
+
+---
