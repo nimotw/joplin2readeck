@@ -395,7 +395,7 @@ if __name__ == "__main__":
         sys.exit()
     print (f"get session id  {session_id}")
 
-    CREATED_AFTER = datetime.now() - timedelta(days=30)
+    CREATED_AFTER = datetime.now() - timedelta(days=2048)
 
     fail_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'fail')
     nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'inbox')
