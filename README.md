@@ -47,12 +47,10 @@ Feel free to suggest improvements or ask questions by opening an issue in this r
 
 ```mermaid
 flowchart LR
-    subgraph Kubernetes
-        A[CronJob (scheduled execution)]
-    end
-    A -->|API| B[joplin2readeck Python Script]
-    B -->|API| C[Joplin Server]
-    B -->|API| D[Readeck Server]
+    A[CronJob] -->|API| B[joplin2readeck Python Script]
+    B -->|API| C[Joplin CLI Data API]
+    C -->|API| D[Joplin Server]
+    B -->|API| E[Readeck Server]
 ```
 
 ## Flowchart
