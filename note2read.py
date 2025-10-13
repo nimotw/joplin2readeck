@@ -1,6 +1,8 @@
 
 import os, sys
 import requests
+from requests.auth import HTTPBasicAuth
+
 import click
 from datetime import datetime, timedelta
 
