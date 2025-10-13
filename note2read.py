@@ -16,6 +16,42 @@ USER = os.getenv("JOPLIN_USERNAME")
 PASS = os.getenv("JOPLIN_PASSWORD")
 READECK_URL = os.getenv("READECK_URL")
 READECK_TOKEN = os.getenv("READECK_TOKEN")
+USERNAME = os.getenv("INSTAPAPER_USERNAME")
+PASSWORD = os.getenv("INSTAPAPER_PASSWORD")
+
+def add_to_instapaper(url: str, title: str = None, selection: str = None) -> bool:
+    """
+    將指定的文章 URL 加入 Instapaper。
+    回傳 True 表示成功，False 表示失敗。
+    """
+    if not USERNAME or not PASSWORD:
+        raise ValueError("請在 .env 檔中設定 INSTAPAPER_USERNAME 和 INSTAPAPER_PASSWORD")
+
+    endpoint = "https://www.instapaper.com/api/add"
+    payload = {"url": url}
+
+    # 可選參數
+    if title:
+        payload["title"] = title
+    if selection:
+        payload["selection"] = selection
+
+    try:
+        response = requests.post(endpoint, data=payload, auth=HTTPBasicAuth(USERNAME, PASSWORD))
+        if response.status_code == 201:
+            print(f"✅ 已成功加入 Instapaper: {url}")
+            return True
+        elif response.status_code == 400:
+            print("❌ 錯誤：缺少參數或 URL 無效")
+        elif response.status_code == 403:
+            print("❌ 登入失敗：帳號或密碼錯誤")
+        else:
+            print(f"⚠️ 其他錯誤: {response.status_code}, 回應: {response.text}")
+        return False
+    except requests.RequestException as e:
+        print(f"🚫 網路錯誤：{e}")
+        return False
+
 
 def format_ym_week(date_str: str = None) -> str:
     """回傳 'YYYYMMWW' 格式，WW 為當月第幾週（兩位數）。預設使用今天日期。"""
@@ -358,6 +394,35 @@ def move_note_to_notebook(
         print("移動失敗:", response.status_code, response.text)
         return False
 
+def pub2instapaper(session_id, items, dest_nb_id, fail_nb_id):
+    for note in items:
+        note_id = note['id']
+        note_title = note['title']
+
+        if publish_note(session_id, note_id):
+            print (f"publish:\t {note_title}")
+        else:
+            print (f"publish fail:\t {note_title}")
+
+        share_items = get_shares(session_id)
+        for share_item in share_items:
+
+            tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
+            apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
+
+            if add_to_instapaper(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
+                print (f"add url to readeck:\t{note_title}")
+                if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
+                    print (f"move to notebook {str_year}:\t {note_title}")
+                    #if del_share(session_id, share_item): 
+                    #    print (f"remove share:\t {note_title} {share_item['id']}")
+            else:
+                print (f"add url fail:\t {note_title}")
+                if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
+                    print (f"move to notebook fail:\t {note_title}")
+                    #if del_share(session_id, share_item): 
+                    #    print (f"remove share:\t {note_title} {share_item['id']}")
+
 def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
     for note in items:
         note_id = note['id']
@@ -403,10 +468,11 @@ if __name__ == "__main__":
     dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
 
     items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
-    pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
+    #pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
+    pub2instapaper(session_id, items, dest_nb_id, fail_nb_id)
 
     print ("\ndelete all share")
-    items = get_shares(session_id)
-    for item in items:
-        if del_share(session_id, item): 
-            print (f"remove sahre:\t {item['id']}")
+    #items = get_shares(session_id)
+    #for item in items:
+    #    if del_share(session_id, item): 
+    #        print (f"remove sahre:\t {item['id']}")
