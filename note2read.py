@@ -496,7 +496,12 @@ if __name__ == "__main__":
     dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
 
     items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
-    pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
+
+    if READECK_TOKEN is not None: 
+        pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
+    else:
+        print ("Do not publish to readeck")
+
     pub2instapaper(session_id, items, dest_nb_id, fail_nb_id)
 
     older_tag = (datetime.now() - timedelta(days = 100)).strftime("%Y%m")
