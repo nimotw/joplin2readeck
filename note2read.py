@@ -1,4 +1,3 @@
-
 import os, sys
 import requests
 from requests.auth import HTTPBasicAuth
@@ -69,6 +68,7 @@ def format_ym_week(date_str: str = None) -> str:
     week_of_month = (day_of_month) // 7 + 1
     return f"{date.strftime('%Y%m')}{week_of_month:02d}"
 
+
 def ensure_yearmonth_tag(api_base_url, token, yearmonth=None):
     """
     確保 Joplin 中存在指定的 yearmonth 標籤（格式: 'YYYYMM'），若不存在則建立。
@@ -127,6 +127,29 @@ def apply_tag_to_note(api_base_url, token, tag_id, note_id):
         res.raise_for_status()
 
 
+def check_tag_on_note(api_base_url, token, tag_id, note_id):
+    """
+    check tag on note
+
+    :param api_base_url: Joplin API base URL，例如 http://localhost:41184
+    :param token: Joplin API token
+    :param tag_id: tag ID
+    :param note_id: note ID
+    """
+    url = f"{api_base_url}/notes/{note_id}/tags"
+
+    res = requests.get(url, params={'token': token})
+    
+    if res.status_code == 200:
+        if tag_id in res.text:
+            #print (f"note_id:{note_id} tag_id:{tag_id} tags:{res.text}")
+            return True
+        else:
+            return False
+    else:
+        res.raise_for_status()
+
+
 def add_to_readeck(bookmark_url, title=None, tags=[]):
     # API endpoint to create a new bookmark
     endpoint = f"{READECK_URL}/api/bookmarks"
@@ -173,6 +196,7 @@ def get_session(user, passwd):
         return None
     return res.json()['id']
 
+
 def publish_note(token, note_id):
     url = f"{SERVER_URL}/api/shares"
     headers = {
@@ -192,6 +216,7 @@ def publish_note(token, note_id):
     else:
         return True
 
+
 def get_shares(token):
     url = f"{SERVER_URL}/api/shares"
     headers = {
@@ -205,6 +230,7 @@ def get_shares(token):
     if res.status_code != 200:
         return None
     return res.json()['items']
+
 
 def del_share(token, item):
     url = f"{SERVER_URL}/api/shares/{item['id']}"
@@ -366,7 +392,6 @@ def get_tag_id_by_name(
     return None
 
 
-
 def move_note_to_notebook(
     api_base_url: str,
     token: str,
@@ -396,6 +421,7 @@ def move_note_to_notebook(
         print("移動失敗:", response.status_code, response.text)
         return False
 
+
 def pub2instapaper(session_id, items, dest_nb_id, fail_nb_id):
     for note in items:
         note_id = note['id']
@@ -407,23 +433,24 @@ def pub2instapaper(session_id, items, dest_nb_id, fail_nb_id):
             print (f"publish fail:\t {note_title}")
 
         share_items = get_shares(session_id)
+
         for share_item in share_items:
+
+            if share_item['note_id'] != note_id:
+                continue
 
             tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
             apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
 
             if add_to_instapaper(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
-                print (f"add url to readeck:\t{note_title}")
+                print (f"add url to instapaper:\t{note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
                     print (f"move to notebook {str_year}:\t {note_title}")
-                    #if del_share(session_id, share_item): 
-                    #    print (f"remove share:\t {note_title} {share_item['id']}")
             else:
                 print (f"add url fail:\t {note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
                     print (f"move to notebook fail:\t {note_title}")
-                    #if del_share(session_id, share_item): 
-                    #    print (f"remove share:\t {note_title} {share_item['id']}")
+
 
 def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
     for note in items:
@@ -438,6 +465,9 @@ def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
         share_items = get_shares(session_id)
         for share_item in share_items:
 
+            if share_item['note_id'] != note_id:
+                continue
+
             tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
             apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
 
@@ -445,14 +475,10 @@ def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
                 print (f"add url to readeck:\t{note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
                     print (f"move to notebook {str_year}:\t {note_title}")
-                    if del_share(session_id, share_item): 
-                        print (f"remove share:\t {note_title} {share_item['id']}")
             else:
                 print (f"add url fail:\t {note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
                     print (f"move to notebook fail:\t {note_title}")
-                    if del_share(session_id, share_item): 
-                        print (f"remove share:\t {note_title} {share_item['id']}")
 
 
 if __name__ == "__main__":
@@ -470,11 +496,18 @@ if __name__ == "__main__":
     dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
 
     items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, nb_id)
-    #pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
+    pub2readeck(session_id, items, dest_nb_id, fail_nb_id)
     pub2instapaper(session_id, items, dest_nb_id, fail_nb_id)
 
-    print ("\ndelete all share")
-    #items = get_shares(session_id)
-    #for item in items:
-    #    if del_share(session_id, item): 
-    #        print (f"remove sahre:\t {item['id']}")
+    older_tag = (datetime.now() - timedelta(days = 100)).strftime("%Y%m")
+    print (f"Delete older tag {older_tag} share")
+    tag_id = get_tag_id_by_name(API_URL, API_TOKEN, older_tag)
+
+    if not tag_id:
+        sys.exit()
+
+    items = get_shares(session_id)
+    for item in items:
+        if (check_tag_on_note(API_URL, API_TOKEN, tag_id, item['note_id'])):
+            if del_share(session_id, item): 
+                print (f"remove sahre:\t {item['id']}")
