@@ -469,7 +469,10 @@ def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
         share_items = get_shares(session_id)
         for share_item in share_items:
 
-            if share_item['note_id'] != note_id:
+            try:
+                if share_item['note_id'] != note_id: continue
+            except KeyError:
+                #print (f"keyerror: {share_item}")
                 continue
 
             tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
