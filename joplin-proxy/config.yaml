@@ -5,6 +5,7 @@ metadata:
   namespace: joplin-cli
 data:
   JOPLIN_DATA_API_URL: "" # 修改為你的 Joplin API endpoint (可為 cluster DNS)
+  NOTES_URL_PREFIX: "" # 修改為你的 notes.nimo.tw/NOTES_URL_PREFIX
   ALLOWED_FOLDER_IDS: "9bbd7a1d5acb4d4b96f2cc6cbd32c716" # 可設多個, 用逗號分隔
   IP_WHITELIST: "" # 可選，填入逗號分隔的 IP 或空字串表示不啟用
 

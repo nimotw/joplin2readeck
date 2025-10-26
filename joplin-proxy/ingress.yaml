@@ -10,7 +10,7 @@ spec:
     - host: notes.nimo.tw   # 改成你的 host
       http:
         paths:
-          - path: /
+          - path: /         # 改成你的 prefix
             pathType: Prefix
             backend:
               service:

@@ -11,8 +11,9 @@ load_dotenv()
 API_URL = os.getenv("JOPLIN_DATA_API_URL")
 API_TOKEN = os.getenv("JOPLIN_DATA_API_TOKEN")
 ALLOWED_FOLDER_IDS = os.getenv("ALLOWED_FOLDER_IDS")
+NOTES_URL_PREFIX = os.getenv("NOTES_URL_PREFIX", "")
 
-app = FastAPI()
+app = FastAPI(root_path=NOTES_URL_PREFIX)
 
 @app.get("/healthz")
 def healthz():
