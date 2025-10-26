@@ -512,6 +512,8 @@ if __name__ == "__main__":
     str_year = datetime.now().strftime('%Y')
     dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
 
+    print (f"{str_year}: {dest_nb_id}")
+
     items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, dest_nb_id)
     for item in items:
         try:
