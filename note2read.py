@@ -440,67 +440,23 @@ def pub2instapaper(session_id, items, dest_nb_id, fail_nb_id):
             if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
                 print (f"move to notebook fail:\t {note_title}")
         
-        """
-        if publish_note(session_id, note_id):
-            print (f"publish:\t {note_title}")
-        else:
-            print (f"publish fail:\t {note_title}")
-
-        share_items = get_shares(session_id)
-
-        for share_item in share_items:
-            #print(f"raw: {share_item}")
-
-            try:
-                if share_item['note_id'] != note_id: continue
-            except KeyError:
-                #print (f"keyerror: {share_item}")
-                continue
-
-            tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
-            apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
-
-            if add_to_instapaper(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
-                print (f"add url to instapaper:\t{note_title}")
-                if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
-                    print (f"move to notebook {str_year}:\t {note_title}")
-            else:
-                print (f"add url fail:\t {note_title}")
-                if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
-                    print (f"move to notebook fail:\t {note_title}")
-        """
-
 
 def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):
     for note in items:
         note_id = note['id']
         note_title = note['title']
 
-        if publish_note(session_id, note_id):
-            print (f"publish:\t {note_title}")
+        tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
+        apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
+
+        if add_to_readeck(f"{NOTES_URL}{NOTES_URL_PREFIX}/n/{note_id}", title = note_title):
+            print (f"add url to readeck:\t{note_title}")
+            if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
+                print (f"move to notebook {str_year}:\t {note_title}")
         else:
-            print (f"publish fail:\t {note_title}")
-
-        share_items = get_shares(session_id)
-        for share_item in share_items:
-
-            try:
-                if share_item['note_id'] != note_id: continue
-            except KeyError:
-                #print (f"keyerror: {share_item}")
-                continue
-
-            tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
-            apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
-
-            if add_to_readeck(f"{SERVER_URL}/shares/{share_item['id']}", title = note_title):
-                print (f"add url to readeck:\t{note_title}")
-                if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
-                    print (f"move to notebook {str_year}:\t {note_title}")
-            else:
-                print (f"add url fail:\t {note_title}")
-                if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
-                    print (f"move to notebook fail:\t {note_title}")
+            print (f"add url fail:\t {note_title}")
+            if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
+                print (f"move to notebook fail:\t {note_title}")
 
 
 if __name__ == "__main__":
@@ -526,15 +482,8 @@ if __name__ == "__main__":
 
     pub2instapaper(session_id, items, dest_nb_id, fail_nb_id)
 
-    older_tag = (datetime.now() - timedelta(days = 100)).strftime("%Y%m")
-    print (f"Delete older tag {older_tag} share")
-    tag_id = get_tag_id_by_name(API_URL, API_TOKEN, older_tag)
-
-    if not tag_id:
-        sys.exit()
 
     items = get_shares(session_id)
     for item in items:
-        if (check_tag_on_note(API_URL, API_TOKEN, tag_id, item['note_id'])):
-            if del_share(session_id, item): 
-                print (f"remove sahre:\t {item['id']}")
+        if del_share(session_id, item): 
+            print (f"remove sahre:\t {item['id']}")
