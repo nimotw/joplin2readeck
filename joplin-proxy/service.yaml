@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: joplin-proxy
+  namespace: joplin-cli
+spec:
+  selector:
+    app: joplin-proxy
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,14 @@
+services:
+  myproxy:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      tags:
+        - localhost:32000/joplin-proxy:1.0.0
+        - localhost:32000/joplin-proxy:latest
+    image: localhost:32000/joplin-proxy:1.0.0
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8000}:8000"
+

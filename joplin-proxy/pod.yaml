@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: joplin-proxy
+  namespace: joplin-cli
+  labels:
+    app: joplin-proxy
+spec:
+  containers:
+    - name: joplin-proxy
+      image: localhost:32000/joplin-proxy:latest  # 改成你自己的 image
+      ports:
+        - containerPort: 8000
+      envFrom:
+        - configMapRef:
+            name: joplin-proxy-config
+        - secretRef:
+            name: joplin-proxy-secret
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 10
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 10
+        periodSeconds: 15
+
