@@ -19,6 +19,8 @@ READECK_URL = os.getenv("READECK_URL")
 READECK_TOKEN = os.getenv("READECK_TOKEN")
 USERNAME = os.getenv("INSTAPAPER_USERNAME")
 PASSWORD = os.getenv("INSTAPAPER_PASSWORD")
+NOTES_URL = os.getenv("NOTES_URL")
+NOTES_URL_PREFIX = os.getenv("NOTES_URL_PREFIX")
 
 def add_to_instapaper(url: str, title: str = None, selection: str = None) -> bool:
     """
