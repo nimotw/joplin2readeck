@@ -10,6 +10,7 @@ load_dotenv()
 
 API_URL = os.getenv("JOPLIN_DATA_API_URL")
 API_TOKEN = os.getenv("JOPLIN_DATA_API_TOKEN")
+ALLOWED_FOLDER_IDS = os.getenv("ALLOWED_FOLDER_IDS")
 
 app = FastAPI()
 
@@ -62,8 +63,8 @@ def get_note(note_id: str, request: Request):
     parent_id = note.get("parent_id")
 
     # 4) check folder whitelist if configured
-    #if ALLOWED_FOLDER_IDS and parent_id not in ALLOWED_FOLDER_IDS:
-    #    raise HTTPException(status_code=403, detail="Forbidden: note not in allowed folder")
+    if ALLOWED_FOLDER_IDS and parent_id not in ALLOWED_FOLDER_IDS:
+        raise HTTPException(status_code=403, detail="Forbidden: note not in allowed folder")
 
     # 5) render body (Joplin stores note body in Markdown/HTML; often it's Markdown)
     body = note.get("body", "")
@@ -74,8 +75,13 @@ def get_note(note_id: str, request: Request):
 
     title = note.get("title", "Untitled")
     html = f"""<!doctype html>
-      {title}
-      {body_html}
+      <head>
+        <title>{title}</title>
+      </head>
+      <body>
+        {body_html}
+      </body>
+    </html>
     """ 
     return HTMLResponse(content=html, status_code=200)
 
