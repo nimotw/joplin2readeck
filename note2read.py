@@ -427,6 +427,18 @@ def pub2instapaper(session_id, items, dest_nb_id, fail_nb_id):
         note_id = note['id']
         note_title = note['title']
 
+        tag_id = ensure_yearmonth_tag(API_URL, API_TOKEN)
+        apply_tag_to_note(API_URL, API_TOKEN, tag_id, note_id)
+        if add_to_instapaper(f"{NOTES_URL}{NOTES_URL_PREFIX}/n/{note_id}", title = note_title):
+            print (f"add url to instapaper:\t{note_title}")
+            if move_note_to_notebook(API_URL, API_TOKEN, note_id, dest_nb_id):
+                print (f"move to notebook {str_year}:\t {note_title}")
+        else:
+            print (f"add url fail:\t {note_title}")
+            if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
+                print (f"move to notebook fail:\t {note_title}")
+        
+        """
         if publish_note(session_id, note_id):
             print (f"publish:\t {note_title}")
         else:
@@ -454,6 +466,7 @@ def pub2instapaper(session_id, items, dest_nb_id, fail_nb_id):
                 print (f"add url fail:\t {note_title}")
                 if move_note_to_notebook(API_URL, API_TOKEN, note_id, fail_nb_id):
                     print (f"move to notebook fail:\t {note_title}")
+        """
 
 
 def pub2readeck(session_id, items, dest_nb_id, fail_nb_id):

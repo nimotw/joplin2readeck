@@ -7,3 +7,5 @@ data:
   JOPLIN_DATA_API_URL: "change to your joplin cli data api url, http://k8s svc name:port" 
   JOPLIN_SERVER_URL: "change to your joplin server url"
   READECK_URL: "change to your readeck server url"
+  NOTES_URL: "change to your notes public url"
+  NOTES_URL_PREFIX: "change to your username /dany"
