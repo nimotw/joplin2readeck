@@ -1,23 +1,77 @@
 import os
-from typing import List, Dict, Optional
+import re
+from typing import Optional, Set
 from fastapi import FastAPI, HTTPException, Request
 import requests
-import markdown2
-from fastapi.responses import HTMLResponse
+from markdown_it import MarkdownIt
+from fastapi.responses import HTMLResponse, StreamingResponse
 from dotenv import load_dotenv
+import bleach
 
 load_dotenv()
 
 API_URL = os.getenv("JOPLIN_DATA_API_URL")
 API_TOKEN = os.getenv("JOPLIN_DATA_API_TOKEN")
-ALLOWED_FOLDER_IDS = os.getenv("ALLOWED_FOLDER_IDS")
+# parse ALLOWED_FOLDER_IDS as a comma-separated list (optional)
+_allowed_folder_ids_env = os.getenv("ALLOWED_FOLDER_IDS", "")
+ALLOWED_FOLDER_IDS: Optional[Set[str]] = (
+    set([s.strip() for s in _allowed_folder_ids_env.split(",") if s.strip()]) or None
+)
 NOTES_URL_PREFIX = os.getenv("NOTES_URL_PREFIX", "")
+SERVER_URL = os.getenv("JOPLIN_SERVER_URL")
+USER = os.getenv("JOPLIN_USERNAME")
+PASS = os.getenv("JOPLIN_PASSWORD")
+
+# Bleach configuration: allow a reasonably safe subset of tags/attributes
+ALLOWED_TAGS = list(bleach.sanitizer.ALLOWED_TAGS) + [
+    "img",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "pre",
+    "code",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "p",
+    "ol",
+    "ul",
+    "li",
+]
+ALLOWED_ATTRIBUTES = {
+    **bleach.sanitizer.ALLOWED_ATTRIBUTES,
+    "a": ["href", "title", "rel"],
+    "img": ["src", "alt", "title", "width", "height"],
+    "*": ["class", "id"],
+}
+ALLOWED_PROTOCOLS = list(bleach.sanitizer.ALLOWED_PROTOCOLS) + ["data", "http", "https"]
 
 app = FastAPI(root_path=NOTES_URL_PREFIX)
 
-@app.get("/healthz")
-def healthz():
-    return {"status": "ok"}
+
+def get_session(user, passwd):
+    url = f"{SERVER_URL}/api/sessions"
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Accept': 'application/json'
+    }
+    data = {
+        'email': user,
+        'password': passwd,
+    }
+
+    res = requests.post(url, json=data, headers=headers)
+
+    if res.status_code != 200:
+        return None
+    return res.json()['id']
+
 
 def client_ip_from_request(request: Request) -> Optional[str]:
     # Honor X-Forwarded-For if present (common behind ingress)
@@ -31,34 +85,114 @@ def client_ip_from_request(request: Request) -> Optional[str]:
         return client.host
     return None
 
+
+def get_r(token):
+    url = f"{SERVER_URL}/api/shares"
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Accept': 'application/json',
+        'X-Api-Auth': token
+    }
+
+    res = requests.get(url, headers=headers)
+
+    if res.status_code != 200:
+        return None
+    return res.json()['items']
+
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/r/{resource_id}", name="get_resource")
+@app.get("/v1/r/{resource_id}", name="get_resource_v1")
+def get_resource(resource_id: str):
+    """
+    Proxy endpoint for Joplin resource files. This prevents exposing API_TOKEN in HTML
+    and allows us to stream resource content (images, etc.) back to the client.
+    Supports both /r/{id} and /v1/r/{id}.
+    """
+
+    token = get_session(USER, PASS)
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Accept': 'application/json',
+        'X-Api-Auth': token
+    }
+
+    endpoint = f"{SERVER_URL.rstrip('/')}/items/{resource_id}/content"
+    try:
+        r = requests.get(endpoint, headers=headers, stream=True, timeout=15)
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API for resource")
+
+    if r.status_code != 200:
+        raise HTTPException(status_code=404, detail=f"Resource not found status_code: {r.status_code}")
+
+    content_type = r.headers.get("Content-Type", "application/octet-stream")
+    # pass through some useful headers (caching) if present
+    headers = {}
+    if "Content-Disposition" in r.headers:
+        headers["Content-Disposition"] = r.headers["Content-Disposition"]
+    if "Cache-Control" in r.headers:
+        headers["Cache-Control"] = r.headers["Cache-Control"]
+    return StreamingResponse(r.iter_content(chunk_size=8192), media_type=content_type, headers=headers)
+
+
+def _replace_joplin_resource_links(body: str, request: Request) -> str:
+    """
+    Replace Joplin resource references in Markdown / HTML with proxied URLs to /v1/r/{resource_id}.
+
+    Handles common patterns:
+      - Markdown images: ![alt](:/resourceid)
+      - Inline HTML images: <img src=":/resourceid" ...>
+      - Plain :/resourceid inside parentheses (:/resourceid)
+
+    Uses request.url_for to build URLs that respect app root_path and uses the v1 resource endpoint name.
+    """
+    # Use the v1 resource route name to ensure versioned URL is used
+    url_builder = lambda resource_id: request.url_for("get_resource_v1", resource_id=resource_id)
+
+    # pattern for markdown image: ![alt](:/resourceid)
+    md_img_pattern = re.compile(r'!\[([^\]]*)\]\(:/([0-9a-fA-F\-]+)\)')
+    body = md_img_pattern.sub(lambda m: f'![{m.group(1)}]({url_builder(m.group(2))})', body)
+
+    # pattern for inline HTML img src=":/resourceid" or src=':/resourceid'
+    html_img_pattern = re.compile(r'(<img\s+[^>]*src=[\'"]):/([0-9a-fA-F\-]+)([\'"][^>]*>)', flags=re.IGNORECASE)
+    body = html_img_pattern.sub(lambda m: f'{m.group(1)}{url_builder(m.group(2))}{m.group(3)}', body)
+
+    # pattern for plain :/resourceid inside parentheses e.g. (:/resourceid)
+    plain_link_pattern = re.compile(r'\(:/([0-9a-fA-F\-]+)\)')
+    body = plain_link_pattern.sub(lambda m: f'({url_builder(m.group(1))})', body)
+
+    return body
+
+
 @app.get("/n/{note_id}", response_class=HTMLResponse)
+@app.get("/v1/n/{note_id}", response_class=HTMLResponse)
 def get_note(note_id: str, request: Request):
     """
-    # 1) optional IP whitelist
-    if IP_WHITELIST:
-        ip = client_ip_from_request(request)
-    if not ip or ip not in IP_WHITELIST:
-        raise HTTPException(status_code=403, detail="Forbidden: IP not allowed")
-
-    # 2) check User-Agent contains "instapaper"
-    ua = request.headers.get("user-agent", "")
-    if "instapaper" not in ua.lower():
-        raise HTTPException(status_code=403, detail="Forbidden: only Instapaper user-agent allowed")
+    Fetch a Joplin note and render it as HTML. Supports both /n/{id} and /v1/n/{id}.
+    - Rewrites Joplin resource references (:/<id>) to proxied /v1/r/<id> URLs so images/resources display.
+    - Renders Markdown with markdown-it-py (allow inline HTML).
+    - Sanitizes output with bleach and linkifies bare URLs.
     """
-
     # 3) fetch note metadata
+    if not API_URL or not API_TOKEN:
+        raise HTTPException(status_code=500, detail="Server misconfiguration: missing Joplin API settings")
+
     endpoint = f"{API_URL.rstrip('/')}/notes/{note_id}"
-    #return f"<h1>Note {note_id} OK {endpoint}</h1>"
     try:
-        r = requests.get(endpoint, timeout=10, params={
-            'token': API_TOKEN,
-            'fields': 'id, parent_id, title, body',
-        })
+        r = requests.get(endpoint, timeout=10, params={"token": API_TOKEN, "fields": "id, parent_id, title, body"})
     except requests.RequestException:
         raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API")
 
     if r.status_code != 200:
         raise HTTPException(status_code=404, detail="Note not found")
+
 
     note = r.json()
     parent_id = note.get("parent_id")
@@ -68,21 +202,36 @@ def get_note(note_id: str, request: Request):
         raise HTTPException(status_code=403, detail="Forbidden: note not in allowed folder")
 
     # 5) render body (Joplin stores note body in Markdown/HTML; often it's Markdown)
-    body = note.get("body", "")
+    body = note.get("body", "") or ""
 
-    # If body already looks like HTML (contains "<html" or "<div"), we could pass it through.
-    # But convert from Markdown to HTML for safe rendering:
-    body_html = markdown2.markdown(body)
+    # Replace Joplin resource tokens (:/<id>) with proxied resource URLs (v1)
+    body = _replace_joplin_resource_links(body, request)
+
+    # Convert from Markdown to HTML using markdown-it-py and allow inline HTML
+    md = MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": True})
+    body_html = md.render(body)
+
+    # Sanitize rendered HTML with bleach to allow a safe subset of inline HTML
+    cleaned = bleach.clean(
+        body_html,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        protocols=ALLOWED_PROTOCOLS,
+        strip=False,  # set to True to remove disallowed tags rather than escape them
+    )
+
+    # Ensure links are safe / have rel attributes and convert bare URLs to links
+    safe_html = bleach.linkify(cleaned)
 
     title = note.get("title", "Untitled")
     html = f"""<!doctype html>
       <head>
+        <meta charset="utf-8" />
         <title>{title}</title>
       </head>
       <body>
-        {body_html}
+        {safe_html}
       </body>
     </html>
-    """ 
+    """
     return HTMLResponse(content=html, status_code=200)
-
