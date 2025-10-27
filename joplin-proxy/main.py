@@ -86,25 +86,49 @@ def client_ip_from_request(request: Request) -> Optional[str]:
     return None
 
 
-def get_r(token):
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
+import json
+def get_share_id(token, note_id):
     url = f"{SERVER_URL}/api/shares"
     headers = {
         'Content-Type': 'application/json; charset=UTF-8',
         'X-Accept': 'application/json',
         'X-Api-Auth': token
     }
+    data = {
+        'note_id': note_id,
+        'recursive': 0
+    }
 
-    res = requests.get(url, headers=headers)
+    res = requests.post(url, json=data, headers=headers)
+    data_bytes = res.content
+    data_str = data_bytes.decode('utf-8')
+    data = json.loads(data_str)
 
     if res.status_code != 200:
-        return None
-    return res.json()['items']
+        return ''
+    else:
+        return data['id']
+    
 
+def del_share_id(token, item_id):
+    url = f"{SERVER_URL}/api/shares/{item_id}"
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Accept': 'application/json',
+        'X-Api-Auth': token
+    }
 
+    res = requests.delete(url, headers=headers)
 
-@app.get("/healthz")
-def healthz():
-    return {"status": "ok"}
+    if res.status_code != 200:
+        return False
+    else:
+        return True
 
 
 @app.get("/r/{resource_id}", name="get_resource")
@@ -115,17 +139,27 @@ def get_resource(resource_id: str):
     and allows us to stream resource content (images, etc.) back to the client.
     Supports both /r/{id} and /v1/r/{id}.
     """
+    if not API_URL or not API_TOKEN:
+        raise HTTPException(status_code=500, detail="Server misconfiguration: missing Joplin API settings")
+
+    endpoint = f"{API_URL.rstrip('/')}/resources/{resource_id}/notes"
+    try:
+        r = requests.get(endpoint, timeout=10, params={"token": API_TOKEN})
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API")
+
+    if r.status_code != 200:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    note_id = r.json()['items'][0]['id']
 
     token = get_session(USER, PASS)
-    headers = {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Accept': 'application/json',
-        'X-Api-Auth': token
-    }
+    share_id = get_share_id(token, note_id)
+    endpoint = f"{SERVER_URL.rstrip('/')}/shares/{share_id}?resource_id={resource_id}"
+    #del_share_id(token, share_id))
 
-    endpoint = f"{SERVER_URL.rstrip('/')}/items/{resource_id}/content"
     try:
-        r = requests.get(endpoint, headers=headers, stream=True, timeout=15)
+        r = requests.get(endpoint, stream=True, timeout=15)
     except requests.RequestException:
         raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API for resource")
 
