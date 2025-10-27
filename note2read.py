@@ -483,7 +483,7 @@ if __name__ == "__main__":
     pub2instapaper(session_id, items, dest_nb_id, fail_nb_id)
 
 
-    items = get_shares(session_id)
-    for item in items:
-        if del_share(session_id, item): 
-            print (f"remove sahre:\t {item['id']}")
+    #items = get_shares(session_id)
+    #for item in items:
+    #    if del_share(session_id, item): 
+    #        print (f"remove sahre:\t {item['id']}")
