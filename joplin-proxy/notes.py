@@ -197,7 +197,8 @@ def get_session(user, passwd):
     return res.json()['id']
 
 
-def publish_note(token, note_id):
+import json
+def get_share_id(token, note_id):
     url = f"{SERVER_URL}/api/shares"
     headers = {
         'Content-Type': 'application/json; charset=UTF-8',
@@ -210,11 +211,14 @@ def publish_note(token, note_id):
     }
 
     res = requests.post(url, json=data, headers=headers)
+    data_bytes = res.content
+    data_str = data_bytes.decode('utf-8')
+    data = json.loads(data_str)
 
     if res.status_code != 200:
-        return False
+        return ''
     else:
-        return True
+        return data['id']
 
 
 def get_shares(token):
@@ -232,8 +236,8 @@ def get_shares(token):
     return res.json()['items']
 
 
-def del_share(token, item):
-    url = f"{SERVER_URL}/api/shares/{item['id']}"
+def del_share_id(token, item_id):
+    url = f"{SERVER_URL}/api/shares/{item_id}"
     headers = {
         'Content-Type': 'application/json; charset=UTF-8',
         'X-Accept': 'application/json',
@@ -505,6 +509,26 @@ def get_note(
     print (f"title: {note.get("title", "")}")
     print (f"body: {note.get("body", "")}")
 
+def get_items(
+    api_base_url: str,
+    token: str,
+    ):
+
+    token = get_session(USER, PASS)
+    headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Accept': 'application/json',
+        'X-Api-Auth': token
+    }
+
+    endpoint = f"{SERVER_URL.rstrip('/')}/items?limit=100&order_dir=ASC"
+    try:
+        r = requests.get(endpoint, headers=headers, timeout=15)
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API for resource")
+
+    print (r.text)
+
 if __name__ == "__main__":
     CREATED_AFTER = datetime.now() - timedelta(days=2048)
     #fail_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'fail')
@@ -513,12 +537,18 @@ if __name__ == "__main__":
     dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
 
     print (f"{str_year}: {dest_nb_id}")
+    #https://joplin.nimo.tw/shares/XJnR9N8qk9xhabpQzErji3?resource_id=4991cfe9eaa24cf6bd5a6ab06cb974af&t=1761578920277
 
-    items = get_filtered_notes(API_URL, API_TOKEN, CREATED_AFTER, None, dest_nb_id)
-    for item in items:
-        try:
-            get_note(API_URL, API_TOKEN, item['id'])
-        except KeyError:
-            print (f"key error: {item}")
-            continue
-        break
+    token = get_session(USER, PASS)
+    resource_id = "e48402cce3ce4a9a86dd2a0f8f8559ff"
+    resource_id = "4991cfe9eaa24cf6bd5a6ab06cb974af"
+    endpoint = f"{API_URL.rstrip('/')}/resources/{resource_id}/notes"
+    try:
+        r = requests.get(endpoint, timeout=10, params={"token": API_TOKEN})
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API")
+    note_id = r.json()['items'][0]['id']
+    print (f"note_id: {note_id}")
+    share_id = get_share_id(token, note_id)
+    print (f"https://joplin.nimo.tw/shares/{share_id}?resource_id={resource_id}")
+    print (del_share_id(token, share_id))
