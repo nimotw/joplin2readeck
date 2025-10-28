@@ -482,8 +482,15 @@ if __name__ == "__main__":
 
     pub2instapaper(session_id, items, dest_nb_id, fail_nb_id)
 
+    older_tag = (datetime.now() - timedelta(days = 100)).strftime("%Y%m")
+    print (f"Delete older tag {older_tag} share")
+    tag_id = get_tag_id_by_name(API_URL, API_TOKEN, older_tag)
 
-    #items = get_shares(session_id)
-    #for item in items:
-    #    if del_share(session_id, item): 
-    #        print (f"remove sahre:\t {item['id']}")
+    if not tag_id:
+        sys.exit()
+
+    items = get_shares(session_id)
+    for item in items:
+        if (check_tag_on_note(API_URL, API_TOKEN, tag_id, item['note_id'])):
+            if del_share(session_id, item): 
+                print (f"remove sahre:\t {item['id']}")
