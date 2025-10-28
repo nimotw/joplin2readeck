@@ -4,9 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
       tags:
-        - localhost:32000/joplin2readeck:1.2.4
+        - localhost:32000/joplin2readeck:1.2.5
         - localhost:32000/joplin2readeck:latest
-    image: localhost:32000/joplin2readeck:1.2.4
+    image: localhost:32000/joplin2readeck:1.2.5
     env_file:
       - .env
 
