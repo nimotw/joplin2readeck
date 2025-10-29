@@ -43,6 +43,7 @@ ALLOWED_TAGS = list(bleach.sanitizer.ALLOWED_TAGS) + [
     "ol",
     "ul",
     "li",
+    "br",
 ]
 ALLOWED_ATTRIBUTES = {
     **bleach.sanitizer.ALLOWED_ATTRIBUTES,
@@ -129,51 +130,83 @@ def del_share_id(token, item_id):
         return False
     else:
         return True
+    
+
+import os
+import io
+import mimetypes
+from PIL import Image
+
+CACHE_DIR = "/tmp/joplin-cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def is_image(content_type):
+    return content_type.startswith("image/")
+
+
+def resize_and_convert_to_jpeg(content, max_size=(800, 800)):
+    try:
+        img = Image.open(io.BytesIO(content))
+        img.thumbnail(max_size)
+        # 增強對比
+        img = ImageEnhance.Contrast(img).enhance(1.3)
+        # 增強亮度
+        img = ImageEnhance.Brightness(img).enhance(1.1)
+        # 色彩數量壓縮
+        img = img.quantize(colors=128, method=2)
+        # 再轉回 RGB（JPEG 不支援 palette）
+        img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=70)  # quality 可自訂
+        buf.seek(0)
+        return buf.read()
+    except Exception:
+        return content  # 如果失敗則直接回傳原始內容
 
 
 @app.get("/r/{resource_id}", name="get_resource")
 @app.get("/v1/r/{resource_id}", name="get_resource_v1")
 def get_resource(resource_id: str):
-    """
-    Proxy endpoint for Joplin resource files. This prevents exposing API_TOKEN in HTML
-    and allows us to stream resource content (images, etc.) back to the client.
-    Supports both /r/{id} and /v1/r/{id}.
-    """
     if not API_URL or not API_TOKEN:
         raise HTTPException(status_code=500, detail="Server misconfiguration: missing Joplin API settings")
+
+    cache_path = os.path.join(CACHE_DIR, f"{resource_id}.jpg")
+    if os.path.exists(cache_path):
+        return StreamingResponse(open(cache_path, "rb"), media_type="image/jpeg")
 
     endpoint = f"{API_URL.rstrip('/')}/resources/{resource_id}/notes"
     try:
         r = requests.get(endpoint, timeout=10, params={"token": API_TOKEN})
     except requests.RequestException:
         raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API")
-
     if r.status_code != 200:
         raise HTTPException(status_code=404, detail="Note not found")
-
     note_id = r.json()['items'][0]['id']
 
     token = get_session(USER, PASS)
     share_id = get_share_id(token, note_id)
     endpoint = f"{SERVER_URL.rstrip('/')}/shares/{share_id}?resource_id={resource_id}"
-    #del_share_id(token, share_id))
 
     try:
         r = requests.get(endpoint, stream=True, timeout=15)
     except requests.RequestException:
         raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API for resource")
-
     if r.status_code != 200:
         raise HTTPException(status_code=404, detail=f"Resource not found status_code: {r.status_code}")
 
+    content = r.content
     content_type = r.headers.get("Content-Type", "application/octet-stream")
-    # pass through some useful headers (caching) if present
-    headers = {}
-    if "Content-Disposition" in r.headers:
-        headers["Content-Disposition"] = r.headers["Content-Disposition"]
-    if "Cache-Control" in r.headers:
-        headers["Cache-Control"] = r.headers["Cache-Control"]
-    return StreamingResponse(r.iter_content(chunk_size=8192), media_type=content_type, headers=headers)
+
+    if is_image(content_type):
+        jpeg_content = resize_and_convert_to_jpeg(content)
+        with open(cache_path, "wb") as f:
+            f.write(jpeg_content)
+        return StreamingResponse(io.BytesIO(jpeg_content), media_type="image/jpeg")
+    else:
+        # 非圖片，直接 cache 原檔
+        with open(cache_path, "wb") as f:
+            f.write(content)
+        return StreamingResponse(io.BytesIO(content), media_type=content_type)
 
 
 def _replace_joplin_resource_links(body: str, request: Request) -> str:
