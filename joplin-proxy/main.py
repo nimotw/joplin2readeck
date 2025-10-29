@@ -7,6 +7,10 @@ from markdown_it import MarkdownIt
 from fastapi.responses import HTMLResponse, StreamingResponse
 from dotenv import load_dotenv
 import bleach
+import logging
+
+# 建議放在檔案開頭，設定 logging
+logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
@@ -54,6 +58,16 @@ ALLOWED_ATTRIBUTES = {
 ALLOWED_PROTOCOLS = list(bleach.sanitizer.ALLOWED_PROTOCOLS) + ["data", "http", "https"]
 
 app = FastAPI(root_path=NOTES_URL_PREFIX)
+
+def remove_p_around_img(html: str) -> str:
+    # 移除 <p> 僅包住一個 <img> 的情況（允許 img 前後有空白）
+    html = re.sub(r'<p>\s*(<img[^>]+>)\s*</p>', r'\1', html)
+    return html
+
+
+def lines_to_paragraphs(text):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return ''.join(f'<p>{line}</p>' for line in lines)
 
 
 def get_session(user, passwd):
@@ -136,6 +150,7 @@ import os
 import io
 import mimetypes
 from PIL import Image
+from PIL import ImageEnhance  # 你原本沒 import，要加上
 
 CACHE_DIR = "/tmp/joplin-cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -144,23 +159,24 @@ def is_image(content_type):
     return content_type.startswith("image/")
 
 
-def resize_and_convert_to_jpeg(content, max_size=(800, 800)):
+def resize_and_convert_to_jpeg(content, max_size=(640, 640)):
     try:
         img = Image.open(io.BytesIO(content))
         img.thumbnail(max_size)
         # 增強對比
-        img = ImageEnhance.Contrast(img).enhance(1.3)
+        #img = ImageEnhance.Contrast(img).enhance(1.3)
         # 增強亮度
-        img = ImageEnhance.Brightness(img).enhance(1.1)
+        #img = ImageEnhance.Brightness(img).enhance(1.1)
         # 色彩數量壓縮
-        img = img.quantize(colors=128, method=2)
+        #img = img.quantize(colors=256, method=2, dither=Image.FLOYDSTEINBERG)
         # 再轉回 RGB（JPEG 不支援 palette）
         img = img.convert("RGB")
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=70)  # quality 可自訂
+        img.save(buf, format="JPEG", quality=70, progressive=True)  # quality 可自訂
         buf.seek(0)
         return buf.read()
     except Exception:
+        logging.warning(f"resize_and_convert_to_jpeg failed: {e}")
         return content  # 如果失敗則直接回傳原始內容
 
 
@@ -275,7 +291,7 @@ def get_note(note_id: str, request: Request):
     body = _replace_joplin_resource_links(body, request)
 
     # Convert from Markdown to HTML using markdown-it-py and allow inline HTML
-    md = MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": True})
+    md = MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": True, "breaks": True})
     body_html = md.render(body)
 
     # Sanitize rendered HTML with bleach to allow a safe subset of inline HTML
