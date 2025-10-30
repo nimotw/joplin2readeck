@@ -159,7 +159,7 @@ def is_image(content_type):
     return content_type.startswith("image/")
 
 
-def resize_and_convert_to_jpeg(content, max_size=(640, 640)):
+def resize_and_convert_to_jpeg(content, max_size=(1200, 1200)):
     try:
         img = Image.open(io.BytesIO(content))
         img.thumbnail(max_size)
