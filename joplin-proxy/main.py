@@ -197,7 +197,12 @@ def get_resource(resource_id: str):
         raise HTTPException(status_code=502, detail="Bad Gateway: failed to contact Joplin API")
     if r.status_code != 200:
         raise HTTPException(status_code=404, detail="Note not found")
-    note_id = r.json()['items'][0]['id']
+
+    note_id = ""
+    if len(r.json()['items']) != 0:
+        note_id = r.json()['items'][0]['id']
+    else:
+        logging.warning(f"resource: {resource_id} parent note_id items = 0, {r.json()}")
 
     token = get_session(USER, PASS)
     share_id = get_share_id(token, note_id)
