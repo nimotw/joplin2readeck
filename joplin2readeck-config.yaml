@@ -9,3 +9,4 @@ data:
   READECK_URL: "change to your readeck server url"
   NOTES_URL: "change to your notes public url"
   NOTES_URL_PREFIX: "change to your username /dany"
+  INBOX: "change to your inbox folder name"

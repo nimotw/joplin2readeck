@@ -21,6 +21,7 @@ USERNAME = os.getenv("INSTAPAPER_USERNAME")
 PASSWORD = os.getenv("INSTAPAPER_PASSWORD")
 NOTES_URL = os.getenv("NOTES_URL")
 NOTES_URL_PREFIX = os.getenv("NOTES_URL_PREFIX")
+INBOX = os.getenv("INBOX")
 
 def add_to_instapaper(url: str, title: str = None, selection: str = None) -> bool:
     """
@@ -469,7 +470,7 @@ if __name__ == "__main__":
     CREATED_AFTER = datetime.now() - timedelta(days=2048)
 
     fail_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'fail')
-    nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, 'inbox')
+    nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, INBOX)
     str_year = datetime.now().strftime('%Y')
     dest_nb_id = get_notebook_id_by_name(API_URL, API_TOKEN, str_year)
 
